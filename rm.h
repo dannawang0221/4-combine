@@ -58,26 +58,8 @@ public:
   ~RM_IndexScanIterator() {}; 	// Destructor
 
   // "key" follows the same format as in IndexManager::insertEntry()
-  RC getNextEntry(RID &rid, void *key) {
-	  return ix_ScanIterator.getNextEntry(rid, key);
-  };  	// Get next matching entry
-
-  RC close() {
-	  return ix_ScanIterator.close();
-  };             			// Terminate index scan
-
-  RC initialize(Attribute attribute, const void *lowKey, const void *highKey, bool lowKeyInclusive, bool highKeyInclusive)
-  {
-	  return ix->scan(ixFileHandle, attribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive, ix_ScanIterator);
-  }
-
-  IXFileHandle ixFileHandle;
-
-private:
-  IX_ScanIterator ix_ScanIterator;
-
-  IndexManager* ix;
-
+  RC getNextEntry(RID &rid, void *key) {return RM_EOF;};  	// Get next matching entry
+  RC close() {return -1;};             			// Terminate index scan
 };
 
 
@@ -157,13 +139,19 @@ protected:
 private:
   static RelationManager *_rm;
 
+ IndexManager *ixManager;
+ 
+    
+
+
   vector<Attribute> Tables;
   vector<Attribute> column;
   RecordBasedFileManager* rbfm;
-  PagedFileManager* pfm;
-  IndexManager* ixManager;
 
   int tableId;
+public:
+     string indexSuffix="Index";
+     string metaSuffix="_Meta";
 
 };
 
