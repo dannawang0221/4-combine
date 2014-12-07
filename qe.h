@@ -2,15 +2,13 @@
 #define _qe_h_
 
 #include <vector>
-#include <limits.h>
-#include <float.h>
 
 #include "../rbf/rbfm.h"
 #include "../rm/rm.h"
 #include "../ix/ix.h"
 
 # define QE_EOF (-1)  // end of the index scan
-
+# define MAX_ATTRI_NUM 1020 //max number of attributes in a temp page
 using namespace std;
 
 typedef enum{ MIN = 0, MAX, SUM, AVG, COUNT } AggregateOp;
@@ -200,21 +198,11 @@ class Filter : public Iterator {
         Filter(Iterator *input,               // Iterator of input R
                const Condition &condition     // Selection condition
         );
-        ~Filter();
+        ~Filter(){};
 
-        RC getNextTuple(void *data);
+        RC getNextTuple(void *data) {return QE_EOF;};
         // For attribute in vector<Attribute>, name it as rel.attr
-
-        void getAttributes(vector<Attribute> &attrs) const;
-
-    private:
-       Iterator *itr;
-       void *value;
-       void *condition;
-       AttrType conditionType;
-       Attribute conditionAttri;
-       vector<Attribute> attrs;
-       CompOp op;
+        void getAttributes(vector<Attribute> &attrs) const{};
 };
 
 
@@ -222,19 +210,12 @@ class Project : public Iterator {
     // Projection operator
     public:
         Project(Iterator *input,                    // Iterator of input R
-              const vector<string> &attrNames);   // vector containing attribute names
-        ~Project();
+              const vector<string> &attrNames){};   // vector containing attribute names
+        ~Project(){};
 
-        RC getNextTuple(void *data);
+        RC getNextTuple(void *data) {return QE_EOF;};
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const;
-
-    private:
-        Iterator *itr;
-        vector<Attribute> attrs;
-        vector<Attribute> oriAttrs;
-        void* tuple;
-
+        void getAttributes(vector<Attribute> &attrs) const{};
 };
 
 class GHJoin : public Iterator {
@@ -244,14 +225,33 @@ class GHJoin : public Iterator {
             Iterator *rightIn,               // Iterator of input S
             const Condition &condition,      // Join condition (CompOp is always EQ)
             const unsigned numPartitions     // # of partitions for each relation (decided by the optimizer)
-      ){};
+      );
       ~GHJoin(){};
 
-      RC getNextTuple(void *data){return QE_EOF;};
+    RC getNextTuple(void *data);
       // For attribute in vector<Attribute>, name it as rel.attr
-      void getAttributes(vector<Attribute> &attrs) const{};
+    void getAttributes(vector<Attribute> &attrs) const;
+private:
+    RC Partitons(unsigned numPartitions,Condition condition);
+    int partitionHash(const void *data, const Attribute attrs,unsigned numPartitions);
+    int  getAttribute(const unsigned int attriNum,const vector<Attribute> attrs,const void*data, const string attributeName, void *attribute);
+    int  insertAttrToTempPage(FileHandle filehandle,int partitionNum,void *dataPage,const void* attribute,const Attribute attr);
+  //  suffixNum=0;
+private:
+    Iterator *leftIn;
+    Iterator *rightIn;
+    Condition condition;
+    unsigned numPartitions;
+    RecordBasedFileManager *rbfm;
+    static int suffixNum;
+    static int jPartition;
+    static int jPageNum;
+    static int jSlotNum;
 };
-
+int GHJoin::suffixNum=0;
+int GHJoin::jPartition=0;
+int GHJoin::jPageNum=0;
+int GHJoin::jSlotNum=1;
 
 class BNLJoin : public Iterator {
     // Block nested-loop join operator
@@ -292,7 +292,7 @@ class Aggregate : public Iterator {
         Aggregate(Iterator *input,          // Iterator of input R
                   Attribute aggAttr,        // The attribute over which we are computing an aggregate
                   AggregateOp op            // Aggregate operation
-        );
+        ){};
 
         // Optional for everyone. 5 extra-credit points
         // Group-based hash aggregation
@@ -301,30 +301,14 @@ class Aggregate : public Iterator {
                   Attribute groupAttr,         // The attribute over which we are grouping the tuples
                   AggregateOp op,              // Aggregate operation
                   const unsigned numPartitions // Number of partitions for input (decided by the optimizer)
-        );
-        ~Aggregate();
+        ){};
+        ~Aggregate(){};
 
-        RC getNextTuple(void *data);
-
+        RC getNextTuple(void *data){return QE_EOF;};
         // Please name the output attribute as aggregateOp(aggAttr)
         // E.g. Relation=rel, attribute=attr, aggregateOp=MAX
         // output attrname = "MAX(rel.attr)"
-        void getAttributes(vector<Attribute> &attrs) const;
-
-    private:
-        RC getMin(void *data);
-        RC getMax(void *data);
-        RC getSum(void *data);
-        RC getAvg(void *data);
-        RC getCount(void *data);
-
-    private:
-        Iterator *itr;
-        AggregateOp op;
-        Attribute aggrAttribute;
-        vector<Attribute> tblAttributes;
-        bool isNextTuple;
-
+        void getAttributes(vector<Attribute> &attrs) const{};
 };
 
 #endif

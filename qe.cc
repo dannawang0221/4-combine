@@ -1,466 +1,347 @@
 
 #include "qe.h"
 
-/*******************************************************************
- *********************Helper Function Declaration*******************
- *******************************************************************/
-// compare two attribute
-bool compareField(const void *attribute, const void *condition, AttrType type, CompOp compOp) {
-	if (condition == NULL)
-		return true;
-	bool result = true;
-	switch (type)
-	{
-	case TypeInt: {
-		int attr = *(int *)attribute;
-		int cond = *(int *)condition;
-		switch(compOp) {
-		case EQ_OP: result = attr == cond; break;
-		case LT_OP: result = attr < cond; break;
-		case GT_OP: result = attr > cond; break;
-		case LE_OP: result = attr <= cond; break;
-		case GE_OP: result = attr >= cond; break;
-		case NE_OP: result = attr != cond; break;
-		case NO_OP: break;
-		}
-		break;
-	}
-	case TypeReal: {
-		float attr = *(float *)attribute;
-		float cond = *(float *)condition;
-		int temp = 0;
-		if (attr - cond > 0.00001)
-			temp = 1;
-		else if (attr - cond < -0.00001)
-			temp = -1;
-		switch(compOp) {
-		case EQ_OP: result = temp == 0; break;
-		case LT_OP: result = temp < 0; break;
-		case GT_OP: result = temp > 0; break;
-		case LE_OP: result = temp <= 0; break;
-		case GE_OP: result = temp >= 0; break;
-		case NE_OP: result = temp != 0; break;
-		case NO_OP: break;
-		}
-		break;
-	}
-	case TypeVarChar: {
-		int attriLeng = *(int *)attribute;
-		string attr((char *)attribute + sizeof(int), attriLeng);
-		int condiLeng = *(int *)condition;
-		string cond((char *)condition + sizeof(int), condiLeng);
-		switch(compOp) {
-		case EQ_OP: result = strcmp(attr.c_str(), cond.c_str()) == 0; break;
-		case LT_OP: result = strcmp(attr.c_str(), cond.c_str()) < 0; break;
-		case GT_OP: result = strcmp(attr.c_str(), cond.c_str()) > 0; break;
-		case LE_OP: result = strcmp(attr.c_str(), cond.c_str()) <= 0; break;
-		case GE_OP: result = strcmp(attr.c_str(), cond.c_str()) >= 0;break;
-		case NE_OP: result = strcmp(attr.c_str(), cond.c_str()) != 0; break;
-		case NO_OP: break;
-		}
-		break;
-	}
-	}
-	return result;
-}
-
-// read attribute from a tuple given its descriptor and attribute position and type,
-void readField(const void *input, void *data, vector<Attribute> attrs, Attribute conditionAttri, AttrType type) {
-	int offset = 0;
-	int attrLength = 0;
-	for (unsigned i = 0; i < attrs.size(); i++) {
-		if(attrs[i].name.c_str() == conditionAttri.name.c_str()) break;
-		else{
-			if (attrs[i].type == TypeInt)
-				offset += sizeof(int);
-			else if (attrs[i].type == TypeReal)
-				offset += sizeof(float);
-			else {
-				int stringLength = *(int *)((char *)input + offset);
-				offset += sizeof(int) + stringLength;
-			}
-		}
-	}
-	if (type == TypeInt) {
-		attrLength = sizeof(int);
-	}
-	else if (type == TypeReal) {
-		attrLength = sizeof(float);
-	}
-	else {
-		attrLength = *(int *)((char *)input + offset) + sizeof(int);
-	}
-	memcpy(data, (char *)input + offset, attrLength);
-}
-
-
-/*******************************************************************
- **************************     Filter     *************************
- *******************************************************************/
-
-Filter::Filter(Iterator* input, const Condition &condition):itr(input) {
-
-	op = condition.op;
-	this->condition = condition.rhsValue.data;
-	conditionType = condition.rhsValue.type;
-	// get the attributes from input Iterator
-	attrs.clear();
-	this->itr->getAttributes(attrs);
-	for (unsigned i = 0; i < attrs.size(); i++) {
-		if (attrs[i].name.compare(condition.lhsAttr) == 0) {  //find the attribute needed
-			conditionAttri.name = attrs[i].name;
-			conditionAttri.length = attrs[i].length;
-			conditionAttri.type = attrs[i].type;
-			value = malloc(attrs[i].length + sizeof(int));
-			break;
-		}
-	}
+Filter::Filter(Iterator* input, const Condition &condition) {
 }
 
 // ... the rest of your implementations go here
-Filter::~Filter(){
-	free(value);
+
+
+
+GHJoin::GHJoin(Iterator *leftIn,               // Iterator of input R
+               Iterator *rightIn,               // Iterator of input S
+               const Condition &condition,      // Join condition (CompOp is always EQ)
+               const unsigned numPartitions     // # of partitions for each relation (decided by the optimizer)
+)
+{
+    //initial class variable
+    //partition R and S
+    rbfm = RecordBasedFileManager::instance();
+    this->leftIn=leftIn;
+    this->rightIn=rightIn;
+    this->condition=condition;
+    this->numPartitions=numPartitions;
+    string left="left";
+    string right="right";
+    //partition left & right
+    Partitons(this->numPartitions,this->condition);
+
+    
+    
+}
+RC GHJoin::getNextTuple(void *data)
+{
+    //build hash table for smaller a relation
+    //match tuples
+    //join attributes left+right **different type of attributes will have different implement
+    //count partition, page number, slot number
+    FileHandle leftFileHandle;
+    FileHandle rightFileHandle;
+    void*dataPage=malloc(PAGE_SIZE);
+    string leftFileName;
+    string rightFileName;
+    string numOfPartition;
+    string numOfGHJoin;
+    //read out the partition to be joined
+    //get the name of the files，jPartition,suffixNum
+    memcpy(&numOfPartition, &jPartition, sizeof(int));
+    memcpy(&numOfGHJoin, &suffixNum, sizeof(int));
+    leftFileName="left_join"+numOfPartition+"_"+numOfGHJoin;//e.g left_join1_0
+    rightFileName="right_join"+numOfPartition+"_"+numOfGHJoin;
+    rbfm->openFile(leftFileName, leftFileHandle);
+    rbfm->openFile(rightFileName, rightFileHandle);
+    //
+    
+    return QE_EOF;
+}
+void GHJoin:: getAttributes(vector<Attribute> &attrs) const
+{
+    //return all attributes used in this join
+    vector<Attribute> leftAttrs;
+    vector<Attribute> rightAttrs;
+    string attriName="rel.attr";
+    //get attributes from left relation and right relation
+    leftIn->getAttributes(leftAttrs);
+    rightIn->getAttributes(rightAttrs);
+    for(int i = 0; i < leftAttrs.size(); ++i)
+    {
+        leftAttrs[i].name=attriName;
+        attrs.push_back(leftAttrs[i]);
+    }
+    for(int i = 0; i < rightAttrs.size(); ++i)
+    {
+        rightAttrs[i].name=attriName;
+        attrs.push_back(rightAttrs[i]);
+    }
+    
+}
+RC GHJoin::Partitons(unsigned numPartitions,Condition condition)
+{
+    //get joined attribute
+    //hash
+    //write to file
+    int hashValue;
+    vector<FileHandle>fileHandle;
+    string fileName;
+    int partitionNum=0;
+    int totalSlotNum=0;
+    int freeSpaceOffset=0;
+    vector<Attribute> attrs;
+    vector<void *>dataPage;
+    void*data=malloc(PAGE_SIZE);
+    void *attribute=malloc(PAGE_SIZE);
+    
+    
+    
+    /********partition left relation*************************/
+    //initial space for temp page
+    for(int i=0;i<numPartitions;i++)
+    {
+        dataPage[i]=malloc(PAGE_SIZE);
+        memcpy((char*)dataPage[i]+PAGE_SIZE-2*sizeof(int), &totalSlotNum, sizeof(int));
+        memcpy((char*)dataPage[i]+PAGE_SIZE-sizeof(int), &freeSpaceOffset, sizeof(int));
+    }
+    //open files
+    for(int i=0;i<numPartitions;i++)
+    {
+        string numOfPartition;
+        string numOfGHJoin;
+        memcpy(&numOfPartition, &i, sizeof(int));
+        memcpy(&numOfGHJoin, &suffixNum, sizeof(int));
+        fileName="left_join"+numOfPartition+"_"+numOfGHJoin;//e.g left_join1_0
+        rbfm->openFile(fileName, fileHandle[i]);
+    }
+    
+    //scan tuples from table
+    //   iterator->setIterator();
+    leftIn->getAttributes(attrs);
+    while(leftIn->getNextTuple(data)!=-1)
+    {
+        int i=0;
+        //get attribute position
+        for(;i<attrs.size();i++)
+        {
+            if(condition.lhsAttr==attrs[i].name)
+                break;
+        }
+        if(i==attrs.size())
+        {
+            return -1;
+        }
+        
+        //get the attribute value used to hash
+        getAttribute(i, attrs, data, condition.lhsAttr, attribute);
+        
+        //hash the attribute get partition number
+        hashValue=partitionHash(attribute,attrs[i],numPartitions);
+        //insert attribute to temp page
+        insertAttrToTempPage(fileHandle[hashValue],hashValue,dataPage[hashValue],attribute,attrs[i]);
+        
+    }
+    //close file
+    for(int i=0;i<numPartitions;i++)
+    {
+        
+        rbfm->closeFile(fileHandle[i]);
+    }
+    //clear vector
+    attrs.clear();
+    
+    /********partition right relation*************************/
+    //initial space for temp page
+    for(int i=0;i<numPartitions;i++)
+    {
+        memcpy((char*)dataPage[i]+PAGE_SIZE-2*sizeof(int), &totalSlotNum, sizeof(int));
+        memcpy((char*)dataPage[i]+PAGE_SIZE-sizeof(int), &freeSpaceOffset, sizeof(int));
+    
+    }
+    
+    //open files
+    for(int i=0;i<numPartitions;i++)
+    {
+        string numOfPartition;
+        string numOfGHJoin;
+        memcpy(&numOfPartition, &i, sizeof(int));
+        memcpy(&numOfGHJoin, &suffixNum, sizeof(int));
+        fileName="right_join"+numOfPartition+"_"+numOfGHJoin;//e.g right_join1_0
+        rbfm->openFile(fileName, fileHandle[i]);
+    }
+    
+    //scan tuples from table
+    //   iterator->setIterator();
+    rightIn->getAttributes(attrs);
+    while(rightIn->getNextTuple(data)!=-1)
+    {
+        int i=0;
+        //get attribute position
+        for(;i<attrs.size();i++)
+        {
+            if(condition.rhsAttr==attrs[i].name)
+                break;
+        }
+        if(i==attrs.size())
+        {
+            return -1;
+        }
+        
+        //get the attribute value used to hash
+        getAttribute(i, attrs, data, condition.rhsAttr, attribute);
+        
+        //hash the attribute get partition number
+        hashValue=partitionHash(attribute,attrs[i],numPartitions);
+        //insert attribute to temp page
+        insertAttrToTempPage(fileHandle[hashValue],hashValue,dataPage[hashValue],attribute,attrs[i]);
+        
+    }
+    
+    //close file
+    for(int i=0;i<numPartitions;i++)
+    {
+ 
+        rbfm->closeFile(fileHandle[i]);
+    }
+    //free page space
+    for(int i=0;i<numPartitions;i++)
+    {
+        free(dataPage[i]);
+    }
+
+    free(data);
+    free(attribute);
+    //clear vector
+    dataPage.clear();
+    fileHandle.clear();
+    attrs.clear();
+    //add suffixNum
+    suffixNum++;
+    return 0;
 }
 
-RC Filter::getNextTuple(void* data){
-	int returnValue = -1;
-	//void* returnTuple = malloc(PAGE_SIZE);
-
-	do {
-		returnValue = itr->getNextTuple(data);
-		if (returnValue != 0)
-			return returnValue;
-		readField(data, this->value, attrs, conditionAttri, conditionType);
-	}
-	while (!compareField(this->value, condition, conditionType, op));
-	return returnValue;
+int GHJoin::partitionHash(const void *data, const Attribute attrs, unsigned numPartitions )
+{
+    int hashValue=0;
+    int attrValue=0;
+    int varCharLength=0;
+    string attr;
+    switch (attrs.type) {
+        case 0:
+            memcpy(&attrValue, data, sizeof(int));
+            hashValue=attrValue%numPartitions;
+            break;
+        case 1:
+            memcpy(&attrValue, data, sizeof(int));
+            hashValue=attrValue%numPartitions;
+        case 2:
+            memcpy(&varCharLength, data, sizeof(int));
+            memcpy(&attr, (char*)data+sizeof(int), varCharLength);
+            attrValue=stoi(attr);
+            hashValue=attrValue%numPartitions;
+        default:
+            break;
+    }
+    return hashValue;
 }
+int GHJoin:: getAttribute(const unsigned int attriNum,const vector<Attribute> attrs,const void*data, const string attributeName, void *attribute)
+{
+  
+    int attriOffset=0;
+    int varCharLength=0;
+    for(int i=0;i<(attriNum-1);i++)
+    {
+        switch (attrs[i].type) {
+            case 0:
+                attriOffset=attriOffset+sizeof(int);
+                break;
+            case 1:
+                attriOffset=attriOffset+sizeof(int);
+                break;
+            case 2:
+                // attriLength=recordDescriptor[attriCount].length+sizeof(int);
+            {
+                memcpy(&varCharLength, (char*)data, attriOffset);
+                attriOffset=attriOffset+varCharLength+sizeof(int);
+                break;
+            }
+            default:
 
-void Filter::getAttributes(vector<Attribute> &attrs) const{
-	attrs.clear();
-	attrs = this->attrs;
+                return -1;
+                //   break;
+        }
+    }
+    switch (attrs[attriNum].type) {
+        case 0:
+            memcpy(attribute, (char*)data+attriOffset, sizeof(int));
+            break;
+        case 1:
+            memcpy(attribute, (char*)data+attriOffset, sizeof(int));
+            break;
+        case 2:
+            memcpy(&varCharLength, (char*)data+attriOffset, sizeof(int));
+            memcpy(attribute, (char*)data+attriOffset, varCharLength+sizeof(int));
+            break;
+        default:
+            break;
+    }
+    return 0;
 }
+int GHJoin:: insertAttrToTempPage(FileHandle filehandle,int partitionNum,void *dataPage,const void* attribute,const Attribute attr)
+{
+    //int type : totalSlotNum
+    //float type:totalSlotNum
+    //varChar:<recordOffset,recordLength>,totalSlotNum,freeSpaceOffset
+    int totalSlotNum=0;
+    int recordOffset=0;
+    int recordLength=0;
+    int freeSpaceOffset=0;
+    int vaildSpce=0;
+    int varCharLength=0;
+    switch (attr.type) {
+        case 0:
+            memcpy(&totalSlotNum, (char*)dataPage+PAGE_SIZE-2*sizeof(int), sizeof(int));
+            if(totalSlotNum==MAX_ATTRI_NUM)
+            {
+                filehandle.writePage(partitionNum, dataPage);
+                totalSlotNum=0;
+            }
+            memcpy((char*)dataPage+totalSlotNum*sizeof(int), attribute, sizeof(int));
+            totalSlotNum=totalSlotNum+1;
+            memcpy((char*)dataPage+PAGE_SIZE-2*sizeof(int), &totalSlotNum, sizeof(int));
+            break;
+        case 1:
+            memcpy(&totalSlotNum, (char*)dataPage+PAGE_SIZE-2*sizeof(int), sizeof(int));
+            if(totalSlotNum==MAX_ATTRI_NUM)
+            {
+                filehandle.writePage(partitionNum, dataPage);
+                 totalSlotNum=0;
+            }
+            memcpy((char*)dataPage+totalSlotNum*sizeof(int), attribute, sizeof(int));
+            totalSlotNum=totalSlotNum+1;
+            memcpy((char*)dataPage+PAGE_SIZE-2*sizeof(int), &totalSlotNum, sizeof(int));
+            break;
+        case 2:
+            memcpy(&varCharLength, attribute, sizeof(int));
+            memcpy(&freeSpaceOffset, (char*)dataPage+PAGE_SIZE-sizeof(int), sizeof(int));
+            memcpy(&totalSlotNum, (char*)dataPage+PAGE_SIZE-2*sizeof(int), sizeof(int));
+            vaildSpce=PAGE_SIZE-freeSpaceOffset-2*totalSlotNum-2*sizeof(int);
+            recordLength=varCharLength+sizeof(int);
+            if(vaildSpce<recordLength)
+            {
+                filehandle.writePage(partitionNum, dataPage);
+                totalSlotNum=0;
+                freeSpaceOffset=0;
+            }
+            memcpy((char*)dataPage+freeSpaceOffset, attribute, recordLength);
+            recordOffset=freeSpaceOffset;
+            memcpy((char*)dataPage+PAGE_SIZE-(2*totalSlotNum+1), &recordOffset, sizeof(int));
+            memcpy((char*)dataPage+PAGE_SIZE-(2*totalSlotNum+2), &recordLength, sizeof(int));
+            freeSpaceOffset=freeSpaceOffset+recordLength;
+            totalSlotNum=totalSlotNum+1;
+            memcpy((char*)dataPage+PAGE_SIZE-sizeof(int), &freeSpaceOffset, sizeof(int));
+            memcpy((char*)dataPage+PAGE_SIZE-2*sizeof(int), &totalSlotNum, sizeof(int));
+            break;
+        default:
+            return -1;
 
-/*******************************************************************
- *************************     Project     *************************
- *******************************************************************/
-Project::Project(Iterator *input, const vector<string> &attrNames):itr(input){
-	attrs.clear();
-	oriAttrs.clear();
-	itr->getAttributes(oriAttrs);
-	unsigned i = 0, j = 0;
-	for (; i < oriAttrs.size(); i++) {
-		if (oriAttrs[i].name.compare(attrNames[j]) == 0) {
-			attrs.push_back(oriAttrs[i]);
-			j++;
-		}
-	}
-	tuple = malloc(PAGE_SIZE);
-}
-Project::~Project(){
-	free(tuple);
-}
-RC Project::getNextTuple(void *data){
-	int returnValue = -1;
-	returnValue = itr->getNextTuple(tuple);
-	if (returnValue != 0) {
-		return returnValue;
-	}
-	//project unwanted attri out of the tuple
-	unsigned i=0, j=0;
-	int offsetI = 0, offsetJ = 0;
-	while (i < oriAttrs.size() && j < attrs.size()) {
-		// get the length of field input[i]
-		int length = 0;
-		if (oriAttrs[i].type == TypeInt)
-			length = sizeof(int);
-		else if (oriAttrs[i].type == TypeReal)
-			length = sizeof(float);
-		else {
-			length = sizeof(int) + *(int *)((char *)tuple + offsetI);
-		}
-		// if same attribute as data[j] copy attribute and increase offset of data
-		if (oriAttrs[i].name.compare(attrs[j].name) == 0) {
-			memcpy((char *)data + offsetJ, (char *)tuple + offsetI, length);
-			offsetJ += length;
-			j++;
-		}
-		// go to next field
-		i++;
-		offsetI += length;
-	}
-
-	return 0;
-}
-void Project::getAttributes(vector<Attribute> &attrs) const{
-	attrs.clear();
-	attrs = this->attrs;
-}
-
-/*******************************************************************
- ***********************     Aggregate     *************************
- *******************************************************************/
-
-Aggregate::Aggregate(Iterator *input, Attribute aggAttr, AggregateOp op):itr(input){
-	this->op=op;
-	aggrAttribute.name = aggAttr.name;
-	aggrAttribute.length = aggAttr.length;
-	aggrAttribute.type = aggAttr.type;
-
-	isNextTuple = false;
-
-	input->getAttributes(tblAttributes);
-}
-
-Aggregate::~Aggregate(){
-
-}
-
-void Aggregate::getAttributes(vector<Attribute> &attrs) const{
-	attrs.clear();
-	Attribute attr;
-	string name (aggrAttribute.name);
-	string close (")");
-	if (op == MIN){
-		string min ("MIN(");
-		attr.name = min + name + close;
-	}
-	else if (op == MAX) {
-		string max ("MAX(");
-		attr.name = max + name + close;
-	}
-	else if (op == COUNT) {
-		string count ("COUNT(");
-		attr.name = count + name + close;
-	}
-	else if (op == AVG) {
-		string avg ("AVG(");
-		attr.name = avg + name + close;
-	}
-	else if (op == SUM) {
-		string sum ("SUM(");
-		attr.name = sum + name + close;
-	}
-	attrs.push_back(attr);
-}
-
-RC Aggregate::getNextTuple(void *data){
-
-	if (isNextTuple == false){
-		return QE_EOF;
-	}
-	if (op == MIN){
-		return getMin(data);
-	}
-	else if (op == MAX) {
-		return getMax(data);
-	}
-	else if (op == COUNT) {
-		return getCount(data);
-	}
-	else if (op == AVG) {
-		return getAvg(data);
-	}
-	else if (op == SUM) {
-		return getSum(data);
-	}
-	return QE_EOF;
-}
-
-RC Aggregate::getMin(void* data){
-	void * tempData = malloc(PAGE_SIZE);
-	void * minimum = malloc(sizeof(int));
-	if (aggrAttribute.type == TypeInt){
-		int max = INT_MAX;
-		memcpy(minimum, &max, sizeof(int));
-	}
-	else{
-		float max = FLT_MAX;
-		memcpy(minimum, &max, sizeof(int));
-	}
-	while (itr->getNextTuple(tempData) != QE_EOF){
-		//short currentField = 0;
-		int varCharLength;
-		char * dataPtr = (char*) tempData;
-		//go to the beginning of the field we want to read for current tuple
-		unsigned i=0;
-		do{
-			if (tblAttributes[i].type == TypeVarChar) {
-
-				memcpy(&varCharLength, dataPtr, sizeof(int));
-				dataPtr += sizeof(int) + varCharLength;
-			}
-			else{
-				dataPtr += sizeof(int);
-			}
-		}
-		while(tblAttributes[i].name.c_str() != aggrAttribute.name.c_str());
-
-		//read the field
-		if (aggrAttribute.type == TypeInt) {
-			if(*(int*)dataPtr<*(int*)minimum)
-				memcpy(minimum, dataPtr, sizeof(int));
-		}
-		else {
-			if(*(float*)dataPtr<*(float*)minimum)
-				memcpy(minimum, dataPtr, sizeof(int));
-		}
-	}
-	memcpy(data, minimum, sizeof(int));
-	free(minimum);
-	free(tempData);
-	isNextTuple = false;
-	return 0;
-}
-
-RC Aggregate::getMax(void* data){
-	void * tempData = malloc(PAGE_SIZE);
-	void * maximum = malloc(sizeof(int));
-	if (aggrAttribute.type == TypeInt){
-		int max = INT_MIN;
-		memcpy(maximum, &max, sizeof(int));
-	}
-	else{
-		float max = FLT_MIN;
-		memcpy(maximum, &max, sizeof(int));
-	}
-	while (itr->getNextTuple(tempData) != QE_EOF){
-		//short currentField = 0;
-		int varCharLength;
-		char * dataPtr = (char*) tempData;
-		//go to the beginning of the field we want to read for current tuple
-		unsigned i=0;
-		do{
-			if (tblAttributes[i].type == TypeVarChar) {
-
-				memcpy(&varCharLength, dataPtr, sizeof(int));
-				dataPtr += sizeof(int) + varCharLength;
-			}
-			else{
-				dataPtr += sizeof(int);
-			}
-		}
-		while(tblAttributes[i].name.c_str() != aggrAttribute.name.c_str());
-
-		//read the field
-		if (aggrAttribute.type == TypeInt) {
-			if(*(int*)dataPtr>*(int*)maximum)
-				memcpy(maximum, dataPtr, sizeof(int));
-		}
-		else {
-			if(*(float*)dataPtr>*(float*)maximum)
-				memcpy(maximum, dataPtr, sizeof(int));
-		}
-	}
-	memcpy(data, maximum, sizeof(int));
-	free(maximum);
-	free(tempData);
-	isNextTuple = false;
-	return 0;
-}
-
-RC Aggregate::getSum(void *data){
-	void * tempData = malloc(PAGE_SIZE);
-	void * currentSum = malloc(sizeof(int));
-	if (aggrAttribute.type == TypeInt){
-		int tempSum = 0;
-		memcpy(currentSum, &tempSum, sizeof(int));
-	}
-	else{
-		float tempSum = 0;
-		memcpy(currentSum, &tempSum, sizeof(int));
-	}
-	while (itr->getNextTuple(tempData) != QE_EOF){
-		int varCharLength;
-		char * dataPtr = (char*) tempData;
-		//go to the beginning of the field we want to read for current tuple
-		unsigned i=0;
-		do{
-			if (tblAttributes[i].type == TypeVarChar) {
-					memcpy(&varCharLength, dataPtr, sizeof(int));
-				dataPtr += sizeof(int) + varCharLength;
-			}
-			else{
-				dataPtr += sizeof(int);
-			}
-		}
-		while(tblAttributes[i].name.c_str() != aggrAttribute.name.c_str());
-			//read the field
-		if (aggrAttribute.type == TypeInt) {
-			*(int*)currentSum = *(int*)currentSum+*(int*)dataPtr;
-		}
-		else {
-			*(float*)currentSum = *(float*)currentSum+*(float*)dataPtr;
-		}
-	}
-	memcpy(data, currentSum, sizeof(int));
-	free(currentSum);
-	free(tempData);
-	isNextTuple = false;
-	return 0;
-}
-
-RC Aggregate::getAvg(void *data){
-	void * tempData = malloc(PAGE_SIZE);
-	void * currentSum = malloc(sizeof(int));
-	int count = 0;
-	if (aggrAttribute.type == TypeInt){
-		int tempSum = 0;
-		memcpy(currentSum, &tempSum, sizeof(int));
-	}
-	else{
-		float tempSum = 0;
-		memcpy(currentSum, &tempSum, sizeof(int));
-	}
-	while (itr->getNextTuple(tempData) != QE_EOF){
-		count++;
-		int varCharLength;
-		char * dataPtr = (char*) tempData;
-		//go to the beginning of the field we want to read for current tuple
-		unsigned i=0;
-		do{
-			if (tblAttributes[i].type == TypeVarChar) {
-					memcpy(&varCharLength, dataPtr, sizeof(int));
-				dataPtr += sizeof(int) + varCharLength;
-			}
-			else{
-				dataPtr += sizeof(int);
-			}
-		}
-		while(tblAttributes[i].name.c_str() != aggrAttribute.name.c_str());
-			//read the field
-		if (aggrAttribute.type == TypeInt) {
-			*(int*)currentSum = *(int*)currentSum+*(int*)dataPtr;
-		}
-		else {
-			*(float*)currentSum = *(float*)currentSum+*(float*)dataPtr;
-		}
-	}
-
-	if (aggrAttribute.type == TypeInt) {
-		*(int*)currentSum = *(int*)currentSum/count;
-	}
-	else {
-		*(float*)currentSum = *(float*)currentSum/count;
-	}
-
-	memcpy(data, currentSum, sizeof(int));
-	free(currentSum);
-	free(tempData);
-	isNextTuple = false;
-	return 0;
-}
-
-RC Aggregate::getCount(void *data){
-	void * tempData = malloc(PAGE_SIZE);
-	int count = 0;
-	while (itr->getNextTuple(tempData) != QE_EOF){
-		count++;
-	}
-
-	memcpy(data, &count, sizeof(int));
-	free(currentSum);
-	free(tempData);
-	isNextTuple = false;
-	return 0;
+    }
+    return 0;
 }
